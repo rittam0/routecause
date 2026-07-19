@@ -1,0 +1,6 @@
+dist/
+dist-portfolio/
+../internal/webassets/dist/
+node_modules/
+test-results/
+playwright-report/

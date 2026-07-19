@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: Check frontend formatting
+        working-directory: web
+        run: npm run format
+
+      - name: Lint frontend
+        working-directory: web
+        run: npm run lint
+
+      - name: Test frontend
+        working-directory: web
+        run: npm test
+
+      - name: Build embedded frontend
+        working-directory: web
+        run: npm run build
+
+      - name: Build static portfolio demo
+        working-directory: web
+        run: npm run build:portfolio
+
+      - name: Check Go formatting
+        run: test -z "$(gofmt -l cmd internal)"
+
+      - name: Test Go
+        run: go test ./...
+
+      - name: Run Go race detector
+        run: go test -race ./...
+
+      - name: Vet Go
+        run: go vet ./...
+
+      - name: Build Linux release binary
+        run: go build -o bin/routecause-linux-amd64 ./cmd/whyfi
+
+      - name: Cross-build Windows release binary
+        env:
+          GOOS: windows
+          GOARCH: amd64
+        run: go build -o bin/routecause-windows-amd64.exe ./cmd/whyfi

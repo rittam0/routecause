@@ -1,0 +1,15 @@
+{
+  "buildCommand": "npm run build:portfolio",
+  "outputDirectory": "dist-portfolio",
+  "installCommand": "npm ci",
+  "cleanUrls": true,
+  "trailingSlash": false,
+  "redirects": [
+    {
+      "source": "/download/windows",
+      "destination": "https://github.com/rittam0/routecause/releases/latest/download/routecause-windows-amd64.exe",
+      "permanent": false
+    }
+  ],
+  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+}

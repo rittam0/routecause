@@ -1,0 +1,659 @@
+[1mdiff --git a/README.md b/README.md[m
+[1mindex d26ff53..b514f71 100644[m
+[1m--- a/README.md[m
+[1m+++ b/README.md[m
+[36m@@ -1,10 +1,10 @@[m
+ # RouteCause[m
+ [m
+[31m-RouteCause is a private, local-first diagnostic that identifies where a slow or unstable connection is most likely failing instead of reporting only a speed.[m
+[32m+[m[32mRouteCause is a private, local-first 60-second network snapshot that measures each connection layer and reports what happened during the test.[m
+ [m
+ > **Screenshot placeholder:** release UI capture pending on a browser-capable environment.[m
+ [m
+[31m-[Live Demo](#live-demo) · [Windows Download](#windows-download-and-native-run) · [Architecture](docs/architecture.md)[m
+[32m+[m[32m[Live Demo](#live-demo) · [Windows Download](#windows-download-and-native-run) · [Architecture](docs/architecture.md) · [Native Windows validation](docs/validation/native-windows.md)[m
+ [m
+ **Verified benchmark:** the local HTTP/SSE layer completed streams for 10,000 simulated clients with 0% observed errors in the recorded WSL run. These were simulated clients, explicitly not users, and the result is not a capacity guarantee. [Method and measurements](docs/benchmarks/milestone2-wsl.md).[m
+ [m
+[36m@@ -19,9 +19,9 @@[m [mmake build[m
+ ./bin/routecause serve[m
+ ```[m
+ [m
+[31m-RouteCause tests the supported path from device resources through native Wi-Fi or Ethernet, the local gateway, DNS and independent destinations. The result is a bounded likely cause with evidence, contradictions, alternatives, limitations and a privacy-safe JSON export.[m
+[32m+[m[32mRouteCause measures Wi-Fi or Ethernet, the local gateway, DNS, the internet path and configured destinations. It does not claim to prove the underlying root cause. The primary interface offers one full 60-second snapshot and a privacy-safe JSON export.[m
+ [m
+[31m-RouteCause does not claim fault ownership. “Likely upstream degradation” is not proof of an ISP fault, and “No material problem was observed during this session” is not a guarantee that the connection is healthy outside the measurement window.[m
+[32m+[m[32mResults are observations, not fault ownership: healthy, issue observed, not measured or insufficient data for each layer. “No significant problem was observed during this test” says nothing about behavior outside the measurement window.[m
+ [m
+ Release screenshots and recording are intentionally not checked in yet: this WSL image lacks Chromium's `libnspr4.so` runtime dependency, and no compatible system browser is installed. The exact deterministic capture commands are in the verification section below; generated filenames are `docs/assets/routecause-start.png`, `routecause-result.png` and `routecause-demo.webm`.[m
+ [m
+[36m@@ -30,7 +30,7 @@[m [mRelease screenshots and recording are intentionally not checked in yet: this WSL[m
+ - A Go diagnostic engine collects typed DNS, TCP, HTTPS, device, Windows Wi-Fi and gateway evidence.[m
+ - A React and TypeScript interface is built by Vite and embedded into the Go executable.[m
+ - The native application listens only on `127.0.0.1`, opens the local interface and streams collector state over replayable Server-Sent Events.[m
+[31m-- One diagnosis runs at a time. Refreshing reconnects to the active session rather than starting another.[m
+[32m+[m[32m- One snapshot runs at a time. Refreshing reconnects to the active session rather than starting another.[m
+ - The CLI remains available for scripted diagnoses and capability inspection.[m
+ - No account, cloud service, analytics, database or upload path exists.[m
+ [m
+[36m@@ -76,7 +76,7 @@[m [mExecutable demo mode serves the same product shell but substitutes deterministic[m
+ ./bin/routecause serve --demo[m
+ ```[m
+ [m
+[31m-It is persistently labelled “Interactive Demo” and “no live measurements.” Available scenarios are healthy, DNS degradation, local Wi-Fi instability, gateway instability, upstream degradation, destination-specific degradation and unknown.[m
+[32m+[m[32mIt is persistently labelled “Interactive Demo” and “no live measurements.” Its seven scenarios demonstrate observed failure patterns; none is presented as a proven cause.[m
+ [m
+ The Vercel-ready static portfolio build uses those fixtures entirely in the browser:[m
+ [m
+[36m@@ -107,6 +107,12 @@[m [mWindows may display its normal warning for an unsigned executable. RouteCause ne[m
+ [m
+ Device-resource pressure currently uses Linux `/proc` semantics. Native Windows reports that collector unsupported once; it does not fabricate equivalent values or repeatedly emit system errors.[m
+ [m
+[32m+[m[32mThree controlled native Windows acceptance runs exercised disconnected Wi-Fi,[m
+[32m+[m[32mWi-Fi with Proton VPN active, and ordinary Wi-Fi. Their privacy-safe aggregate[m
+[32m+[m[32mevidence and explicit interpretation limits are documented in[m
+[32m+[m[32m[docs/validation/native-windows.md](docs/validation/native-windows.md). Raw[m
+[32m+[m[32mreports are intentionally not committed.[m
+[32m+[m
+ ## Privacy and security[m
+ [m
+ RouteCause does not persist raw SSIDs, MAC addresses, BSSIDs, interface GUIDs/descriptions or gateway IP addresses. Wi-Fi is represented by a session-local label. Browser storage, external analytics and third-party frontend requests are absent. History contains at most ten privacy-safe summaries in process memory and disappears on exit.[m
+[36m@@ -115,7 +121,7 @@[m [mThe local server validates Host and Origin, caps request and header sizes, rejec[m
+ [m
+ ## Verification[m
+ [m
+[31m-Current release-readiness pass (2026-07-19): frontend formatting and lint passed; 3 Vitest files with 17 tests passed; native and portfolio production builds passed; all Go tests, race detection and vet passed; Linux amd64 and Windows amd64 cross-builds passed; all seven executable demo scenarios returned their expected typed codes; and staged load runs completed through 10,000 simulated SSE clients with zero observed errors. The 11 Playwright tests were discovered and the embedded server started, but Chromium execution is blocked in this WSL image by missing `libnspr4.so`; screenshots and recording share that blocker and are not claimed as verified.[m
+[32m+[m[32mCurrent snapshot-contract pass (2026-07-19): frontend formatting and lint passed; 3 Vitest files with 20 tests passed; native and portfolio production builds passed; all Go tests, race detection and vet passed; and Linux amd64, Windows amd64, local-server and load-harness builds passed. The existing Playwright command could not start its loopback test server in this restricted workspace (`listen tcp 127.0.0.1:8765: socket: operation not permitted`), so browser E2E behavior is not claimed as verified in this pass. The previously recorded staged load run through 10,000 simulated SSE clients remains documented separately and was not recharacterized as users.[m
+ [m
+ Run the release matrix:[m
+ [m
+[36m@@ -163,13 +169,13 @@[m [mkill "$ROUTECAUSE_PID"[m
+ [m
+ Each stage starts one deterministic diagnosis and connects the requested number of simulated clients to its SSE stream. JSON output records connection-latency p50/p95/p99, completed-stream throughput, error rate and completed stream count. On Linux, `--pid` also samples peak server RSS and process CPU seconds from `/proc`; omit it on unsupported systems and those server-process fields remain unavailable. Host file-descriptor, port and memory limits can prevent the 10,000 stage and must be reported as test-environment limits rather than hidden.[m
+ [m
+[31m-## Diagnostic model and limitations[m
+[32m+[m[32m## Snapshot model and limitations[m
+ [m
+ Summaries use success/failure/timeout rates, median, MAD, robust Hampel outliers and consecutive failures. p95 appears from 20 successful samples and p99 from 100; these remain coarse session descriptors at their minimum sample sizes. Mean, minimum and maximum are descriptive rather than primary diagnosis inputs.[m
+ [m
+[31m-Native Windows rules distinguish likely physical Wi-Fi instability, local gateway instability, degradation beyond a stable local path, and one-destination degradation. Missing, contradictory, VPN-routed or ambiguous evidence returns unknown. Two independent public target groups are required before upstream degradation is considered. Silent traceroute hops are never ISP evidence.[m
+[32m+[m[32mInternally retained compatibility codes group repeated Wi-Fi, gateway, DNS, internet-path and destination patterns. Public results report only what occurred in the 60-second window and never state that a router, ISP or device caused it. Mixed evidence says the interruption could not be isolated; missing or ambiguous evidence is insufficient data. Silent traceroute hops are never ISP evidence.[m
+ [m
+[31m-Gateway ICMP p95 variation or statistical outliers alone produce a cautious possible-variation observation and an unknown result. A likely local gateway conclusion requires loss, consecutive failures, sustained severe median latency, or accompanying degraded application-path evidence.[m
+[32m+[m[32mGateway p95 below the configured slow threshold is healthy. Statistical outliers alone remain in the Advanced report and never block a healthy result. Unsupported Windows device-resource collection is neutral and is not one of the five network-layer cards.[m
+ [m
+ Important limitations:[m
+ [m
+[36m@@ -178,19 +184,20 @@[m [mImportant limitations:[m
+ - Route presence is not represented as successful gateway reachability.[m
+ - No throughput test or ISP attribution is performed.[m
+ - Quiet sessions cannot exclude intermittent faults.[m
+[31m-- Native Wi-Fi/gateway behavior and browser launching require validation on real Windows hardware.[m
+[32m+[m[32m- Native Wi-Fi/gateway behavior and browser launching were validated on one Windows 11 computer; broader adapter, router, VPN and Windows-version coverage remains outstanding.[m
+ - The Windows binary is currently unsigned.[m
+ - Session history is memory-only and one diagnosis may run at a time.[m
+ [m
+ ## Release checklist[m
+ [m
+[31m-- [ ] Frontend format, lint, component, production and portfolio builds pass.[m
+[32m+[m[32m- [x] Frontend format, lint, component, production and portfolio builds pass.[m
+ - [ ] Playwright lifecycle, reconnect, cancellation, export and seven-scenario suite passes.[m
+[31m-- [ ] Go tests, race detector and vet pass.[m
+[31m-- [ ] Linux and Windows release-named binaries build.[m
+[31m-- [ ] Embedded UI and all executable demo scenarios are smoke-tested.[m
+[32m+[m[32m- [x] Go tests, race detector and vet pass.[m
+[32m+[m[32m- [x] Linux and Windows release-named binaries build.[m
+[32m+[m[32m- [x] Embedded UI and all executable demo scenarios are smoke-tested.[m
+ - [ ] Static portfolio build is inspected and cannot imply native collection.[m
+[31m-- [ ] Load stages and environmental limits are recorded as simulated-client results.[m
+[31m-- [ ] Native Windows capabilities, live diagnosis, browser open, export and cancellation are manually validated.[m
+[32m+[m[32m- [x] Load stages and environmental limits are recorded as simulated-client results.[m
+[32m+[m[32m- [x] Native Windows capabilities, live snapshot, browser open and export are manually validated across three controlled conditions.[m
+[32m+[m[32m- [ ] Native Windows cancellation is manually validated.[m
+ - [ ] Release screenshots and recording match the current bundle.[m
+ - [ ] No credentials, private raw results or unintended generated files are included.[m
+[1mdiff --git a/cmd/whyfi/main.go b/cmd/whyfi/main.go[m
+[1mindex 962316e..f8353a1 100644[m
+[1m--- a/cmd/whyfi/main.go[m
+[1m+++ b/cmd/whyfi/main.go[m
+[36m@@ -222,7 +222,8 @@[m [mfunc writeJSON(path string, value model.DiagnosticSession) error {[m
+ 	return nil[m
+ }[m
+ func printConclusion(w io.Writer, s model.DiagnosticSession, path string) {[m
+[31m-	fmt.Fprintf(w, "RouteCause conclusion: %s\n", s.Diagnosis.Conclusion)[m
+[32m+[m	[32mfmt.Fprintf(w, "RouteCause test summary: %s\n", s.Diagnosis.Conclusion)[m
+[32m+[m	[32mfmt.Fprintln(w, "This snapshot reports observations from the test window; it does not prove root cause.")[m
+ 	if s.Diagnosis.Confidence != "" {[m
+ 		fmt.Fprintf(w, "Confidence: %s\n", s.Diagnosis.Confidence)[m
+ 	} else {[m
+[1mdiff --git a/docs/architecture.md b/docs/architecture.md[m
+[1mindex 83db647..fe2a997 100644[m
+[1m--- a/docs/architecture.md[m
+[1m+++ b/docs/architecture.md[m
+[36m@@ -12,7 +12,7 @@[m [mThe shared domain types live in `internal/model`. This additional package preven[m
+ [m
+ `web/` contains the React/TypeScript Vite source and no Go package. Its native production output is written to `internal/webassets/dist` and embedded with `go:embed`. `routecause serve` listens only on `127.0.0.1`, serves the immutable frontend and `/api/v1`, and opens the fixed local URL in the default browser. The CLI path remains independent. The separate portfolio build compiles a deterministic in-browser fixture adapter to `web/dist-portfolio`; it never calls or claims access to native collectors.[m
+ [m
+[31m-`internal/webapp` owns one active diagnostic record, a ten-item in-memory summary history, privacy sanitization, deterministic demo fixtures, and replayable SSE events. A start event contains waiting layers; the first typed collector result moves its layer to testing; completion derives final layer states from summaries and diagnosis. No percentage exists because collectors use different schedules.[m
+[32m+[m[32m`internal/webapp` owns one active snapshot record, a ten-item in-memory summary history, privacy sanitization, deterministic demo fixtures, and replayable SSE events. A start event contains five waiting network layers; the first typed collector result moves its layer to testing; completion derives factual layer states and observations from summaries. No percentage exists because collectors use different schedules.[m
+ [m
+ SSE events have monotonically increasing per-session IDs. A reconnect with `Last-Event-ID` replays later events, so refresh does not restart or duplicate a diagnosis. Simultaneous starts receive HTTP 409. Cancellation and process shutdown cancel the engine context.[m
+ [m
+[36m@@ -32,11 +32,11 @@[m [mp95 requires 20 successful samples and p99 requires 100. At exactly those counts[m
+ [m
+ HTTPS targets have explicit primary-health and independent-secondary roles and default to small responses, rather than ordinary homepages whose rendering/backend cost dominated the network signal. Each role configures URL, `HEAD`/`GET` method, and expected status codes. GET reads are bounded and discarded. A completed HTTP exchange is transport success even when its status is unexpected; endpoint success is tracked separately, so a 404 retains timing evidence without satisfying endpoint-health diagnosis. DNS and TCP have separate replaceable targets. Public endpoints are imperfect: operators may change behavior or apply rate limits.[m
+ [m
+[31m-## Diagnosis boundaries[m
+[32m+[m[32m## Snapshot interpretation boundaries[m
+ [m
+[31m-The engine is a deterministic function of `[]CollectorSummary` and configured thresholds. DNS degradation requires slow system DNS plus a healthy comparison resolver. Destination-specific degradation requires exactly one slow TCP target plus a healthy alternative. Device pressure requires high normalized load or low available memory. More than one matching degradation pattern is conflicting evidence and returns `unknown`.[m
+[32m+[m[32mThe engine remains a deterministic function of `[]CollectorSummary` and configured thresholds, and stable diagnosis codes remain in the schema for compatibility. Public conclusions are bounded observations: no significant problem in this test, repeated failures in one measured layer, or a brief interruption that the snapshot could not isolate. They never assign causation to a router, ISP or device.[m
+ [m
+[31m-A native local diagnosis requires an unambiguous active route and sufficient gateway evidence. Wi-Fi attribution additionally requires the active route to be Wi-Fi. Weak/fluctuating Wi-Fi, disconnect/reconnect activity, gateway loss, sustained median latency, consecutive failures, and independent public target behavior are evaluated as deterministic typed patterns. ICMP p95 variation or robust outliers without loss, sustained latency, or degraded application paths produce cautious `possible local gateway latency variation` evidence and an `unknown` diagnosis because gateways may deprioritize echo replies. Upstream requires a stable local path and two independently operated degraded target groups; one endpoint can never establish it. VPN/tunnel routes, equal default routes, ICMP-unavailable sessions, contradictory patterns, and missing evidence return `unknown`.[m
+[32m+[m[32mA native local diagnosis requires an unambiguous active route and sufficient gateway evidence. Wi-Fi attribution additionally requires the active route to be Wi-Fi. Weak/fluctuating Wi-Fi, disconnect/reconnect activity, gateway loss, sustained median latency, consecutive failures, and independent public target behavior are evaluated as deterministic typed patterns. Gateway p95 below the configured slow threshold is healthy, and robust statistical outliers alone never change the diagnosis. Repeated above-threshold tail latency without corroboration is retained only as an advanced qualification. Upstream requires a stable local path and two independently operated degraded target groups; one endpoint can never establish it. VPN/tunnel routes, equal default routes, unavailable measurements, and unclear patterns return `unknown`.[m
+ [m
+ Linux and WSL retain milestone-one symptom behavior because native collectors are explicitly unsupported. No traceroute inference exists, and a silent hop cannot be treated as an ISP fault.[m
+ [m
+[1mdiff --git a/docs/decisions/0003-native-windows-local-path.md b/docs/decisions/0003-native-windows-local-path.md[m
+[1mindex b503949..d326034 100644[m
+[1m--- a/docs/decisions/0003-native-windows-local-path.md[m
+[1m+++ b/docs/decisions/0003-native-windows-local-path.md[m
+[36m@@ -24,4 +24,4 @@[m [mNon-Windows builds return typed unsupported results. In particular, WSL cannot c[m
+ [m
+ Native Windows can compare radio state, local gateway behavior, and independent public destinations without administrator privileges. ICMP policy, gateway rate-limiting, route metric interpretation, adapter classification, and WLAN structure behavior still require validation on real Windows versions and hardware. No result attributes a fault to an ISP, and traceroute silence is not evidence.[m
+ [m
+[31m-Windows device-resource sampling is explicitly unsupported until defensible native CPU-pressure and available-memory semantics are selected; the collector emits one typed unsupported availability result. Gateway ICMP tail variation alone is also insufficient for likely gateway attribution. Loss, consecutive failures, sustained severe median latency, or corroborating degraded application paths are required for the stronger conclusion.[m
+[32m+[m[32mWindows device-resource sampling is explicitly unsupported until defensible native CPU-pressure and available-memory semantics are selected; the collector emits one typed unsupported availability result. Gateway p95 below the configured slow threshold is healthy, and MAD/Hampel outliers alone are descriptive advanced measurements. Loss, consecutive failures, sustained severe median latency, or corroborating degraded application paths are required for stronger gateway attribution.[m
+[1mdiff --git a/docs/decisions/0004-embedded-local-product-interface.md b/docs/decisions/0004-embedded-local-product-interface.md[m
+[1mindex 15f35b5..de3f680 100644[m
+[1m--- a/docs/decisions/0004-embedded-local-product-interface.md[m
+[1m+++ b/docs/decisions/0004-embedded-local-product-interface.md[m
+[36m@@ -10,7 +10,7 @@[m [mThe diagnostic CLI and native collectors are inspectable but require command-lin[m
+ [m
+ Build a hand-written React/TypeScript interface with Vite. Commit the production bundle under `internal/webassets/dist` and embed it in the Go executable. A small Go HTTP service binds exclusively to `127.0.0.1`, opens that fixed URL in the default browser, and exposes versioned JSON and Server-Sent Event endpoints.[m
+ [m
+[31m-Maintain one active diagnosis. Store at most ten privacy-safe summary records in memory and no browser state. SSE uses replayable integer event IDs so refresh/reconnect observes the existing run. Demo mode is a process-level flag with deterministic fixtures and persistent visual/API labels; it cannot mix live and fixture measurements.[m
+[32m+[m[32mMaintain one active 60-second snapshot. Store at most ten privacy-safe summary records in memory and no browser state. SSE uses replayable integer event IDs so refresh/reconnect observes the existing run. The primary surface reports five factual layer cards and a bounded test summary; confidence and technical interpretation remain under Advanced report. Stable internal diagnosis codes remain for schema compatibility but are not presented as proof of cause. Demo mode is a process-level flag with deterministic observed-pattern fixtures and persistent visual/API labels; it cannot mix live and fixture measurements.[m
+ [m
+ Validate Host and Origin, cap request bodies/headers and SSE clients, reject unknown JSON, expose no target configuration, and cancel the engine on API cancellation or process shutdown. Apply a defense-in-depth privacy sanitizer before session retrieval and export.[m
+ [m
+[1mdiff --git a/docs/product-interface-design.md b/docs/product-interface-design.md[m
+[1mindex c47a863..3895ac8 100644[m
+[1m--- a/docs/product-interface-design.md[m
+[1m+++ b/docs/product-interface-design.md[m
+[36m@@ -6,7 +6,7 @@[m [mStatus: implementation contract for milestone 2[m
+ [m
+ RouteCause should feel like a calm consumer utility: one obvious action, a visible connection path, plain language, and technical depth only when requested. It must never resemble a monitoring dashboard or imply certainty the evidence does not support.[m
+ [m
+[31m-The primary promise is: “Find out why your internet is slow—not merely how slow it is.” The first screen contains one dominant action, a short duration choice, the connection path, and a small privacy statement. Demo mode uses a persistent amber banner and labels every demo result; it cannot visually pass as a real diagnostic.[m
+[32m+[m[32mThe product contract is: “RouteCause measures each layer of your connection and reports what happened during the test. It does not claim to prove the underlying root cause.” The first screen contains one dominant Full 60-second Snapshot action, the five measured layers, and a small privacy statement. Demo mode uses a persistent amber banner and labels every result as a demonstrated observation pattern.[m
+ [m
+ ## Visual system[m
+ [m
+[36m@@ -19,16 +19,14 @@[m [mThe primary promise is: “Find out why your internet is slow—not merely how s[m
+ [m
+ ## Information states[m
+ [m
+[31m-Each connection layer is one of: waiting, testing, healthy, degraded, unavailable, or inconclusive. There is no percentage because collectors have different schedules and completion counts. During a run the interface shows elapsed wall time and a cancel action.[m
+[32m+[m[32mDuring collection a layer may be waiting or testing. Final cards are Wi-Fi/Ethernet, Gateway, DNS, Internet and Tested destinations, and use only Healthy, Issue observed, Not measured or Insufficient data. There is no percentage because collectors have different schedules and completion counts.[m
+ [m
+ The result hierarchy is:[m
+ [m
+[31m-1. likely cause and confidence;[m
+[31m-2. supporting and contradicting evidence;[m
+[31m-3. recommended actions selected only from the typed diagnosis code;[m
+[31m-4. alternatives and limitations;[m
+[31m-5. export action;[m
+[31m-6. advanced raw measurements inside a native disclosure panel.[m
+[32m+[m[32m1. factual Test summary;[m
+[32m+[m[32m2. five layer observations;[m
+[32m+[m[32m3. export action;[m
+[32m+[m[32m4. confidence, alternative explanations, evidence, robust statistics and limitations inside Advanced report.[m
+ [m
+ History stores and displays only privacy-safe summary fields: session ID, timestamps, duration, diagnosis code/conclusion, confidence, demo flag, and final layer states. It never uses browser storage.[m
+ [m
+[1mdiff --git a/internal/diagnosis/engine.go b/internal/diagnosis/engine.go[m
+[1mindex 71980f8..62d9c6b 100644[m
+[1m--- a/internal/diagnosis/engine.go[m
+[1m+++ b/internal/diagnosis/engine.go[m
+[36m@@ -20,7 +20,10 @@[m [mtype candidate struct {[m
+ 	alternatives              []string[m
+ }[m
+ [m
+[31m-func (e Engine) Diagnose(summaries []model.CollectorSummary) (model.Diagnosis, []model.Evidence) {[m
+[32m+[m[32mfunc (e Engine) Diagnose(summaries []model.CollectorSummary) (diagnosis model.Diagnosis, evidence []model.Evidence) {[m
+[32m+[m	[32m// Diagnosis codes remain stable for export compatibility, but every public[m
+[32m+[m	[32m// conclusion is deliberately bounded to what this measurement window saw.[m
+[32m+[m	[32mdefer func() { diagnosis = snapshotDiagnosis(diagnosis) }()[m
+ 	byType := map[string][]model.CollectorSummary{}[m
+ 	for _, summary := range summaries {[m
+ 		byType[summary.CollectorType] = append(byType[summary.CollectorType], summary)[m
+[36m@@ -49,7 +52,7 @@[m [mfunc (e Engine) Diagnose(summaries []model.CollectorSummary) (model.Diagnosis, [[m
+ 			if len(localEvidence) == 0 {[m
+ 				localEvidence = []model.Evidence{{ID: "insufficient-local-evidence", Statement: "Native Wi-Fi/default-route or gateway measurements were missing, unsupported, or ambiguous.", Supports: true, SummaryKeys: append(keys(byType["wifi"]), keys(byType["gateway"])...)}}[m
+ 			}[m
+[31m-			return unknown("There is insufficient or contradictory local-versus-upstream evidence.", localEvidence), localEvidence[m
+[32m+[m			[32mreturn unknown("The measurements were not clear enough to identify one cause.", localEvidence), localEvidence[m
+ 		}[m
+ 	}[m
+ 	candidates := []candidate{}[m
+[36m@@ -76,11 +79,12 @@[m [mfunc (e Engine) Diagnose(summaries []model.CollectorSummary) (model.Diagnosis, [[m
+ 	}[m
+ 	healthy, issues := e.healthyAssessment(byType)[m
+ 	if healthy {[m
+[31m-		ev := []model.Evidence{{ID: "typical-performance-within-thresholds", Statement: "Typical DNS, TCP, HTTPS, and device resource measurements remained within configured thresholds.", Supports: true, SummaryKeys: keys(summaries)}}[m
+[32m+[m		[32mprimary := []model.Evidence{{ID: "typical-performance-within-thresholds", Statement: "No significant problem was observed across the measured connection paths and tested destinations.", Supports: true, SummaryKeys: keys(summaries)}}[m
+[32m+[m		[32mev := append([]model.Evidence{}, primary...)[m
+ 		if unstable := instabilityEvidence(summaries); unstable != nil {[m
+ 			ev = append(ev, *unstable)[m
+ 		}[m
+[31m-		return model.Diagnosis{Code: model.DiagnosisHealthy, Conclusion: "No material problem was observed during this session.", Confidence: "moderate", SupportingEvidence: ev, ContradictingEvidence: []model.Evidence{}, Alternatives: []string{"An intermittent issue may not have occurred during the measurement window.", "Native Wi-Fi and gateway evidence is available only when running directly on Windows."}}, ev[m
+[32m+[m		[32mreturn model.Diagnosis{Code: model.DiagnosisHealthy, Conclusion: "No significant problem was observed during this test.", Confidence: "moderate", SupportingEvidence: primary, ContradictingEvidence: []model.Evidence{}, Alternatives: []string{"An intermittent issue may not have occurred during the measurement window.", "Native Wi-Fi and gateway evidence is available only when running directly on Windows."}}, ev[m
+ 	}[m
+ 	issues = append(issues, e.inconclusivePatternEvidence(byType)...)[m
+ 	ev := issues[m
+[36m@@ -90,6 +94,28 @@[m [mfunc (e Engine) Diagnose(summaries []model.CollectorSummary) (model.Diagnosis, [[m
+ 	return unknown("There is insufficient or inconclusive evidence to identify a supported cause.", ev), ev[m
+ }[m
+ [m
+[32m+[m[32mfunc snapshotDiagnosis(d model.Diagnosis) model.Diagnosis {[m
+[32m+[m	[32mswitch d.Code {[m
+[32m+[m	[32mcase model.DiagnosisHealthy:[m
+[32m+[m		[32md.Conclusion = "No significant problem was observed during this test."[m
+[32m+[m	[32mcase model.DiagnosisDNS:[m
+[32m+[m		[32md.Conclusion = "DNS showed repeated failures during this test."[m
+[32m+[m	[32mcase model.DiagnosisDestination:[m
+[32m+[m		[32md.Conclusion = "Tested destinations showed repeated failures during this test."[m
+[32m+[m	[32mcase model.DiagnosisLocalWiFi:[m
+[32m+[m		[32md.Conclusion = "Wi-Fi/Ethernet showed repeated failures during this test."[m
+[32m+[m	[32mcase model.DiagnosisDevice:[m
+[32m+[m		[32md.Conclusion = "A brief interruption was observed, but this test could not isolate it to one layer."[m
+[32m+[m	[32mcase model.DiagnosisGateway:[m
+[32m+[m		[32md.Conclusion = "Gateway showed repeated failures during this test."[m
+[32m+[m	[32mcase model.DiagnosisUpstream:[m
+[32m+[m		[32md.Conclusion = "Internet showed repeated failures during this test."[m
+[32m+[m	[32mdefault:[m
+[32m+[m		[32md.Conclusion = "A brief interruption was observed, but this test could not isolate it to one layer."[m
+[32m+[m	[32m}[m
+[32m+[m	[32mreturn d[m
+[32m+[m[32m}[m
+[32m+[m
+ func nativeLocalEvidence(byType map[string][]model.CollectorSummary) bool {[m
+ 	for _, summary := range append(append([]model.CollectorSummary{}, byType["wifi"]...), byType["gateway"]...) {[m
+ 		if summary.Successes > 0 || summary.Errors[model.ErrorNoAdapter] > 0 || summary.Errors[model.ErrorDisconnected] > 0 || summary.Errors[model.ErrorAmbiguous] > 0 || summary.Errors[model.ErrorICMPBlocked] > 0 {[m
+[36m@@ -116,7 +142,7 @@[m [mfunc (e Engine) localCandidates(byType map[string][]model.CollectorSummary) ([]c[m
+ 	gatewayStats := g.Metrics["gateway_ms"][m
+ 	gatewayLossOrFailures := g.LossRate > .10 || g.FailureRate > .10 || g.LongestFailureRun > 1[m
+ 	gatewaySustainedLatency := gatewayMetricReady && gatewayStats.Median >= e.thresholds.GatewaySlowMS[m
+[31m-	gatewayTailVariation := gatewayMetricReady && (gatewayStats.OutlierCount > 0 || (gatewayStats.P95 != nil && *gatewayStats.P95 >= e.thresholds.GatewaySlowMS))[m
+[32m+[m	[32mgatewayTailVariation := gatewayMetricReady && gatewayStats.P95 != nil && *gatewayStats.P95 >= e.thresholds.GatewaySlowMS[m
+ 	degraded, healthy := publicTargetGroups(byType, e.thresholds)[m
+ 	// Windows gateways may deprioritize ICMP. Tail variation alone is not enough[m
+ 	// to attribute application symptoms to the gateway.[m
+[36m@@ -145,32 +171,32 @@[m [mfunc (e Engine) localCandidates(byType map[string][]model.CollectorSummary) ([]c[m
+ 		if gatewayStats.P95 != nil {[m
+ 			p95 = fmt.Sprintf("%.1f ms", *gatewayStats.P95)[m
+ 		}[m
+[31m-		evidence = append(evidence, model.Evidence{ID: "possible-gateway-latency-variation", Statement: fmt.Sprintf("Possible local gateway latency variation was observed: median %.1f ms, p95 %s, %d robust outlier(s), zero material loss or sustained failure evidence. Gateway ICMP may be deprioritized, so this signal is not attributed as a likely gateway fault by itself.", gatewayStats.Median, p95, gatewayStats.OutlierCount), Supports: true, SummaryKeys: []string{key(g)}})[m
+[32m+[m		[32mevidence = append(evidence, model.Evidence{ID: "possible-gateway-latency-variation", Statement: fmt.Sprintf("Gateway latency variation exceeded the configured threshold: median %.1f ms and p95 %s, without packet loss or repeated failures.", gatewayStats.Median, p95), Supports: true, SummaryKeys: []string{key(g)}})[m
+ 		if len(healthy) >= 2 {[m
+[31m-			evidence = append(evidence, model.Evidence{ID: "healthy-application-paths-contradict-gateway", Statement: "Independent DNS, TCP, and HTTPS application-path measurements remained healthy, contradicting a strong local gateway degradation conclusion.", Supports: false, SummaryKeys: keys(healthy)})[m
+[32m+[m			[32mevidence = append(evidence, model.Evidence{ID: "healthy-application-paths-contradict-gateway", Statement: "Independent DNS, TCP, and HTTPS application-path measurements remained healthy.", Supports: false, SummaryKeys: keys(healthy)})[m
+ 		}[m
+ 		return nil, evidence, false[m
+ 	}[m
+ [m
+ 	if wifiRoute && wifiUnstable && gatewayUnstable {[m
+ 		support := []model.Evidence{{ID: "unstable-wifi", Statement: "Native Wi-Fi measurements showed weak/fluctuating signal, disconnection, or reconnect activity.", Supports: true, SummaryKeys: keys(wifi)}, {ID: "unstable-gateway", Statement: "Local gateway latency or loss was unstable during the same session.", Supports: true, SummaryKeys: []string{key(g)}}}[m
+[31m-		return []candidate{{code: model.DiagnosisLocalWiFi, conclusion: "Physical Wi-Fi instability is a likely local contributor.", supporting: support, alternatives: []string{"Radio interference, access-point behavior, or adapter/driver behavior may produce similar signals.", "Another upstream issue may coexist."}}}, evidence, true[m
+[32m+[m		[32mreturn []candidate{{code: model.DiagnosisLocalWiFi, conclusion: "Wi-Fi/Ethernet showed repeated failures during this test.", supporting: support, alternatives: []string{"Radio interference, access-point behavior, or adapter/driver behavior may produce similar signals.", "Another upstream issue may coexist."}}}, evidence, true[m
+ 	}[m
+ 	if wifiRoute && wifiStable && gatewayUnstable {[m
+ 		support := []model.Evidence{{ID: "stable-wifi", Statement: "Native Wi-Fi remained connected with acceptable signal and no reconnects.", Supports: true, SummaryKeys: keys(wifi)}, {ID: "unstable-gateway", Statement: "Local gateway latency or loss was unstable.", Supports: true, SummaryKeys: []string{key(g)}}}[m
+[31m-		return []candidate{{code: model.DiagnosisGateway, conclusion: "The local gateway or local network path is likely unstable.", supporting: support, alternatives: []string{"Access-point forwarding, router load, or local wired backhaul may contribute.", "ICMP handling by the gateway may differ from application traffic."}}}, evidence, true[m
+[32m+[m		[32mreturn []candidate{{code: model.DiagnosisGateway, conclusion: "Gateway showed repeated failures during this test.", supporting: support, alternatives: []string{"Access-point forwarding, router load, or local wired backhaul may contribute.", "ICMP handling by the gateway may differ from application traffic."}}}, evidence, true[m
+ 	}[m
+ 	if localStable && len(degraded) >= 2 {[m
+ 		support := []model.Evidence{{ID: "stable-local-path", Statement: "Native Wi-Fi or Ethernet and local gateway measurements remained stable.", Supports: true, SummaryKeys: append(keys(wifi), key(g))}, {ID: "multiple-degraded-public-targets", Statement: "At least two independent configured public targets showed sustained degradation.", Supports: true, SummaryKeys: keys(degraded)}}[m
+[31m-		return []candidate{{code: model.DiagnosisUpstream, conclusion: "Degradation is likely beyond the stable local network path.", supporting: support, alternatives: []string{"Regional routing, shared access-network congestion, or independent destination behavior may contribute.", "RouteCause does not attribute this signal to a specific ISP."}}}, evidence, true[m
+[32m+[m		[32mreturn []candidate{{code: model.DiagnosisUpstream, conclusion: "Internet showed repeated failures during this test.", supporting: support, alternatives: []string{"Regional routing, shared access-network congestion, or independent destination behavior may contribute.", "RouteCause does not attribute this signal to a specific ISP."}}}, evidence, true[m
+ 	}[m
+ 	if localStable && len(degraded) == 1 && len(healthy) > 0 {[m
+ 		support := []model.Evidence{{ID: "stable-local-path", Statement: "Native Wi-Fi or Ethernet and local gateway measurements remained stable.", Supports: true, SummaryKeys: append(keys(wifi), key(g))}, {ID: "one-degraded-destination", Statement: "One configured destination was degraded while an independent alternative remained healthy.", Supports: true, SummaryKeys: append(keys(degraded), keys(healthy)...)}}[m
+[31m-		return []candidate{{code: model.DiagnosisDestination, conclusion: "Degradation appears specific to one measured destination.", supporting: support, alternatives: []string{"Destination service behavior or route-specific congestion may be responsible.", "The condition may be transient."}}}, evidence, true[m
+[32m+[m		[32mreturn []candidate{{code: model.DiagnosisDestination, conclusion: "Tested destinations showed repeated failures during this test.", supporting: support, alternatives: []string{"Destination service behavior or route-specific congestion may be responsible.", "The condition may be transient."}}}, evidence, true[m
+ 	}[m
+ 	if localStable && len(degraded) == 0 && len(healthy) >= 2 {[m
+[31m-		support := []model.Evidence{{ID: "stable-local-path", Statement: "Native Wi-Fi or Ethernet and local gateway measurements remained stable.", Supports: true, SummaryKeys: append(keys(wifi), key(g))}, {ID: "healthy-independent-targets", Statement: "At least two independently operated configured public targets remained within thresholds.", Supports: true, SummaryKeys: keys(healthy)}}[m
+[31m-		return []candidate{{code: model.DiagnosisHealthy, conclusion: "No material problem was observed during this session.", supporting: support, alternatives: []string{"An intermittent issue may not have occurred during the measurement window.", "Public targets and ICMP handling may not represent every application path."}}}, evidence, true[m
+[32m+[m		[32msupport := []model.Evidence{{ID: "healthy-connection-path", Statement: "No significant problem was observed across Wi-Fi, gateway, DNS, internet and tested destinations.", Supports: true, SummaryKeys: append(append(keys(wifi), key(g)), keys(healthy)...)}}[m
+[32m+[m		[32mreturn []candidate{{code: model.DiagnosisHealthy, conclusion: "No significant problem was observed during this test.", supporting: support, alternatives: []string{"An intermittent issue may not have occurred during the measurement window.", "The tested destinations may not represent every application path."}}}, evidence, true[m
+ 	}[m
+ 	if wifiRoute && wifiUnstable && gatewayStable {[m
+ 		evidence = append(evidence, model.Evidence{ID: "contradictory-local-signals", Statement: "Wi-Fi instability indicators were present while gateway measurements remained stable.", Supports: false, SummaryKeys: append(keys(wifi), key(g))})[m
+[36m@@ -271,7 +297,7 @@[m [mfunc (e Engine) deviceCandidate(s []model.CollectorSummary) (candidate, bool) {[m
+ 		return candidate{}, false[m
+ 	}[m
+ 	ev := model.Evidence{ID: "device-pressure", Statement: fmt.Sprintf("Device median load per core was %.2f and available memory was %.1f%%.", load, memory), Supports: true, SummaryKeys: []string{key(s[0])}}[m
+[31m-	return candidate{code: model.DiagnosisDevice, conclusion: "Local device resource pressure is a likely contributor.", supporting: []model.Evidence{ev}, alternatives: []string{"A resource-intensive task may be temporary and unrelated to the network.", "Another unmeasured network issue may coexist."}}, true[m
+[32m+[m	[32mreturn candidate{code: model.DiagnosisDevice, conclusion: "A brief interruption was observed, but this test could not isolate it to one layer.", supporting: []model.Evidence{ev}, alternatives: []string{"A resource-intensive task may be temporary and unrelated to the network.", "Another unmeasured network issue may coexist."}}, true[m
+ }[m
+ [m
+ func (e Engine) dnsCandidate(system, comparisons []model.CollectorSummary) (candidate, bool) {[m
+[36m@@ -288,7 +314,7 @@[m [mfunc (e Engine) dnsCandidate(system, comparisons []model.CollectorSummary) (cand[m
+ 		return candidate{}, false[m
+ 	}[m
+ 	support := []model.Evidence{{ID: "slow-system-dns", Statement: fmt.Sprintf("System DNS median was %.1f ms, above the %.1f ms threshold.", system[0].Metrics["dns_ms"].Median, e.thresholds.DNSSlowMS), Supports: true, SummaryKeys: []string{key(system[0])}}, {ID: "healthy-comparison-dns", Statement: "At least one comparison resolver remained within the healthy DNS threshold.", Supports: true, SummaryKeys: keys(healthy)}}[m
+[31m-	return candidate{code: model.DiagnosisDNS, conclusion: "The system DNS path is likely degraded relative to comparison resolvers.", supporting: support, alternatives: []string{"Resolver caching or transient hostname-specific behavior may affect the comparison.", "The configured comparison resolver may use a different network path."}}, true[m
+[32m+[m	[32mreturn candidate{code: model.DiagnosisDNS, conclusion: "DNS showed repeated failures during this test.", supporting: support, alternatives: []string{"Resolver caching or transient hostname-specific behavior may affect the comparison.", "The configured comparison resolver may use a different network path."}}, true[m
+ }[m
+ [m
+ func (e Engine) destinationCandidate(s []model.CollectorSummary) (candidate, bool) {[m
+[36m@@ -308,7 +334,7 @@[m [mfunc (e Engine) destinationCandidate(s []model.CollectorSummary) (candidate, boo[m
+ 		return candidate{}, false[m
+ 	}[m
+ 	support := []model.Evidence{{ID: "one-slow-destination", Statement: fmt.Sprintf("TCP connection median to %s was %.1f ms, above the %.1f ms threshold.", slow[0].Target, slow[0].Metrics["connect_ms"].Median, e.thresholds.ConnectSlowMS), Supports: true, SummaryKeys: []string{key(slow[0])}}, {ID: "healthy-alternative-destination", Statement: "At least one alternative TCP destination remained within the healthy threshold.", Supports: true, SummaryKeys: keys(healthy)}}[m
+[31m-	return candidate{code: model.DiagnosisDestination, conclusion: "Degradation appears specific to one measured destination.", supporting: support, alternatives: []string{"Routing to that destination may be transiently different.", "The destination may intentionally delay or rate-limit connections."}}, true[m
+[32m+[m	[32mreturn candidate{code: model.DiagnosisDestination, conclusion: "Tested destinations showed repeated failures during this test.", supporting: support, alternatives: []string{"Routing to that destination may be transiently different.", "The destination may intentionally delay or rate-limit connections."}}, true[m
+ }[m
+ [m
+ func (e Engine) healthyAssessment(byType map[string][]model.CollectorSummary) (bool, []model.Evidence) {[m
+[1mdiff --git a/internal/diagnosis/milestone15_test.go b/internal/diagnosis/milestone15_test.go[m
+[1mindex df4bd8d..3db9a67 100644[m
+[1m--- a/internal/diagnosis/milestone15_test.go[m
+[1m+++ b/internal/diagnosis/milestone15_test.go[m
+[36m@@ -57,10 +57,13 @@[m [mfunc TestRealWindowsGatewayTailVariationIsUnknown(t *testing.T) {[m
+ 	if got.Code != model.DiagnosisUnknown || got.Confidence != "" {[m
+ 		t.Fatalf("got %#v, want unknown with withheld confidence", got)[m
+ 	}[m
+[32m+[m	[32mif got.Conclusion != "A brief interruption was observed, but this test could not isolate it to one layer." {[m
+[32m+[m		[32mt.Fatalf("unbounded snapshot conclusion: %q", got.Conclusion)[m
+[32m+[m	[32m}[m
+ 	foundVariation, foundContradiction := false, false[m
+ 	for _, item := range evidence {[m
+ 		if item.ID == "possible-gateway-latency-variation" {[m
+[31m-			foundVariation = strings.Contains(item.Statement, "median 7.0 ms") && strings.Contains(item.Statement, "p95 50.0 ms") && strings.Contains(item.Statement, "9 robust outlier")[m
+[32m+[m			[32mfoundVariation = strings.Contains(item.Statement, "median 7.0 ms") && strings.Contains(item.Statement, "p95 50.0 ms") && !strings.Contains(item.Statement, "outlier")[m
+ 		}[m
+ 		if item.ID == "healthy-application-paths-contradict-gateway" && !item.Supports {[m
+ 			foundContradiction = true[m
+[36m@@ -71,6 +74,36 @@[m [mfunc TestRealWindowsGatewayTailVariationIsUnknown(t *testing.T) {[m
+ 	}[m
+ }[m
+ [m
+[32m+[m[32mfunc TestHealthyRealWindowsReportIgnoresStatisticalOutliers(t *testing.T) {[m
+[32m+[m	[32mp95 := 28.0[m
+[32m+[m	[32mgateway := model.CollectorSummary{[m
+[32m+[m		[32mCollectorType: "gateway", Target: "local_gateway", Attempts: 60, Successes: 60, SuccessRate: 1,[m
+[32m+[m		[32mMetrics:      map[string]model.Statistics{"gateway_ms": {Count: 60, Min: 1, Median: 4, P95: &p95, Max: 42, Mean: 6, MAD: 1, OutlierCount: 3}},[m
+[32m+[m		[32mDetailCounts: map[string]int{"connection_kind=wifi": 60, "reachability_method=windows_icmp": 60},[m
+[32m+[m	[32m}[m
+[32m+[m	[32mwifi := stableWiFi()[m
+[32m+[m	[32mwifi.Attempts, wifi.Successes, wifi.SuccessRate = 60, 60, 1[m
+[32m+[m	[32mfor name, stat := range wifi.Metrics {[m
+[32m+[m		[32mstat.Count = 60[m
+[32m+[m		[32mwifi.Metrics[name] = stat[m
+[32m+[m	[32m}[m
+[32m+[m	[32mdeviceUnsupported := model.CollectorSummary{CollectorType: "device_resources", Target: "local_device", Attempts: 1, FailureRate: 1, LongestFailureRun: 1, Errors: map[model.ErrorCategory]int{model.ErrorUnsupported: 1}}[m
+[32m+[m	[32msummaries := replace(healthySummaries(), deviceUnsupported)[m
+[32m+[m	[32mgot, evidence := New(config.Default().Thresholds).Diagnose(withLocal(summaries, wifi, gateway))[m
+[32m+[m	[32mif got.Code != model.DiagnosisHealthy || got.Conclusion != "No significant problem was observed during this test." || got.Confidence != "moderate" {[m
+[32m+[m		[32mt.Fatalf("unexpected healthy diagnosis: %#v", got)[m
+[32m+[m	[32m}[m
+[32m+[m	[32mconst want = "No significant problem was observed across Wi-Fi, gateway, DNS, internet and tested destinations."[m
+[32m+[m	[32mif len(got.SupportingEvidence) != 1 || got.SupportingEvidence[0].Statement != want {[m
+[32m+[m		[32mt.Fatalf("supporting evidence = %#v, want %q", got.SupportingEvidence, want)[m
+[32m+[m	[32m}[m
+[32m+[m	[32mfor _, item := range evidence {[m
+[32m+[m		[32mif strings.Contains(strings.ToLower(item.Statement), "outlier") {[m
+[32m+[m			[32mt.Fatalf("outlier leaked into primary evidence: %q", item.Statement)[m
+[32m+[m		[32m}[m
+[32m+[m	[32m}[m
+[32m+[m[32m}[m
+[32m+[m
+ func TestUpstreamRequiresTwoIndependentPublicTargets(t *testing.T) {[m
+ 	s := healthySummaries()[m
+ 	s = replace(s, summary("https", "https://only.example", "total_ms", 2000))[m
+[1mdiff --git a/internal/webapp/demo.go b/internal/webapp/demo.go[m
+[1mindex dfcfe58..92a39af 100644[m
+[1m--- a/internal/webapp/demo.go[m
+[1m+++ b/internal/webapp/demo.go[m
+[36m@@ -66,19 +66,19 @@[m [mfunc demoTarget(kind string) string {[m
+ func demoSession(scenario string, started time.Time, raw []model.ProbeResult) model.DiagnosticSession {[m
+ 	code := demoCodes[scenario][m
+ 	conclusions := map[model.DiagnosisCode]string{[m
+[31m-		model.DiagnosisHealthy:     "No material problem was observed during this demo session.",[m
+[31m-		model.DiagnosisDNS:         "The system DNS path is likely degraded relative to comparison resolvers.",[m
+[31m-		model.DiagnosisLocalWiFi:   "Physical Wi-Fi instability is a likely local contributor.",[m
+[31m-		model.DiagnosisGateway:     "The local gateway or local network path is likely unstable.",[m
+[31m-		model.DiagnosisUpstream:    "Degradation is likely beyond the stable local network path.",[m
+[31m-		model.DiagnosisDestination: "Degradation appears specific to one measured destination.",[m
+[31m-		model.DiagnosisUnknown:     "There is insufficient or contradictory evidence to identify one cause.",[m
+[32m+[m		[32mmodel.DiagnosisHealthy:     "No significant problem was observed during this test.",[m
+[32m+[m		[32mmodel.DiagnosisDNS:         "DNS showed repeated failures during this test.",[m
+[32m+[m		[32mmodel.DiagnosisLocalWiFi:   "Wi-Fi/Ethernet showed repeated failures during this test.",[m
+[32m+[m		[32mmodel.DiagnosisGateway:     "Gateway showed repeated failures during this test.",[m
+[32m+[m		[32mmodel.DiagnosisUpstream:    "Internet showed repeated failures during this test.",[m
+[32m+[m		[32mmodel.DiagnosisDestination: "Tested destinations showed repeated failures during this test.",[m
+[32m+[m		[32mmodel.DiagnosisUnknown:     "A brief interruption was observed, but this test could not isolate it to one layer.",[m
+ 	}[m
+ 	confidence := "moderate"[m
+ 	if code == model.DiagnosisUnknown {[m
+ 		confidence = ""[m
+ 	}[m
+[31m-	evidence := []model.Evidence{{ID: "demo-evidence", Statement: "RouteCause deterministic demonstration measurements support this example result.", Supports: true, SummaryKeys: []string{"demo"}}}[m
+[32m+[m	[32mevidence := []model.Evidence{{ID: "demo-evidence", Statement: "This deterministic demonstration shows an observed measurement pattern, not a proven cause.", Supports: true, SummaryKeys: []string{"demo"}}}[m
+ 	summaries := []model.CollectorSummary{}[m
+ 	for _, result := range raw {[m
+ 		summaries = append(summaries, model.CollectorSummary{CollectorType: result.CollectorType, Target: result.Target, Attempts: 3, Successes: 3, SuccessRate: 1, Metrics: map[string]model.Statistics{"demo_ms": {Count: 3, Min: 10, Median: 10, Max: 10, Mean: 10}}})[m
+[1mdiff --git a/internal/webapp/layers.go b/internal/webapp/layers.go[m
+[1mindex 1c4fedc..1123bf8 100644[m
+[1m--- a/internal/webapp/layers.go[m
+[1m+++ b/internal/webapp/layers.go[m
+[36m@@ -1,6 +1,10 @@[m
+ package webapp[m
+ [m
+[31m-import "whyfi/internal/model"[m
+[32m+[m[32mimport ([m
+[32m+[m	[32m"fmt"[m
+[32m+[m
+[32m+[m	[32m"whyfi/internal/model"[m
+[32m+[m[32m)[m
+ [m
+ func finalLayers(session model.DiagnosticSession) []LayerState {[m
+ 	layers := cloneLayers(layerOrder)[m
+[36m@@ -21,9 +25,8 @@[m [mfunc finalLayers(session model.DiagnosticSession) []LayerState {[m
+ 			}[m
+ 		}[m
+ 	}[m
+[31m-	set("device", summaryStatus(byType["device_resources"]))[m
+ 	local := summaryStatus(byType["wifi"])[m
+[31m-	if local == "unavailable" {[m
+[32m+[m	[32mif local == "unavailable" || local == "not_measured" {[m
+ 		for _, gateway := range byType["gateway"] {[m
+ 			if gateway.DetailCounts["connection_kind=ethernet"] > 0 && gateway.Successes > 0 {[m
+ 				local = "healthy"[m
+[36m@@ -33,19 +36,19 @@[m [mfunc finalLayers(session model.DiagnosticSession) []LayerState {[m
+ 	set("local", local)[m
+ 	set("gateway", summaryStatus(byType["gateway"]))[m
+ 	dns := append(append([]model.CollectorSummary{}, byType["dns_system"]...), byType["dns_comparison"]...)[m
+[31m-	set("internet", summaryStatus(dns))[m
+[31m-	destinations := append(append([]model.CollectorSummary{}, byType["tcp_connect"]...), byType["https"]...)[m
+[31m-	set("destinations", summaryStatus(destinations))[m
+[32m+[m	[32mset("dns", summaryStatus(dns))[m
+[32m+[m	[32mset("internet", summaryStatus(byType["tcp_connect"]))[m
+[32m+[m	[32mset("destinations", summaryStatus(byType["https"]))[m
+ 	switch session.Diagnosis.Code {[m
+ 	case model.DiagnosisDevice:[m
+[31m-		set("device", "degraded")[m
+[32m+[m		[32mset("local", "degraded")[m
+ 	case model.DiagnosisLocalWiFi:[m
+ 		set("local", "degraded")[m
+ 		set("gateway", "degraded")[m
+ 	case model.DiagnosisGateway:[m
+ 		set("gateway", "degraded")[m
+ 	case model.DiagnosisDNS:[m
+[31m-		set("internet", "degraded")[m
+[32m+[m		[32mset("dns", "degraded")[m
+ 	case model.DiagnosisUpstream:[m
+ 		set("internet", "degraded")[m
+ 		set("destinations", "degraded")[m
+[36m@@ -56,17 +59,74 @@[m [mfunc finalLayers(session model.DiagnosticSession) []LayerState {[m
+ 			if layers[i].Status == "healthy" {[m
+ 				continue[m
+ 			}[m
+[31m-			if layers[i].Status != "unavailable" {[m
+[32m+[m			[32mif layers[i].Status != "unavailable" && layers[i].Status != "not_measured" {[m
+ 				layers[i].Status = "inconclusive"[m
+ 			}[m
+ 		}[m
+ 	}[m
+[32m+[m	[32mfor i := range layers {[m
+[32m+[m		[32mlayers[i].Observation = layerObservation(layers[i].ID, byType)[m
+[32m+[m	[32m}[m
+ 	return layers[m
+ }[m
+ [m
+[32m+[m[32mfunc layerObservation(id string, byType map[string][]model.CollectorSummary) string {[m
+[32m+[m	[32mswitch id {[m
+[32m+[m	[32mcase "local":[m
+[32m+[m		[32mif len(byType["wifi"]) == 0 {[m
+[32m+[m			[32mreturn "Wi-Fi details were not measured; an Ethernet route may still have been observed."[m
+[32m+[m		[32m}[m
+[32m+[m		[32ms := byType["wifi"][0][m
+[32m+[m		[32mif q, ok := s.Metrics["signal_quality_percent"]; ok {[m
+[32m+[m			[32mreturn fmt.Sprintf("Wi-Fi signal quality had a median of %.0f%% across %d checks.", q.Median, s.Attempts)[m
+[32m+[m		[32m}[m
+[32m+[m		[32mreturn fmt.Sprintf("The local connection was checked %d times.", s.Attempts)[m
+[32m+[m	[32mcase "gateway":[m
+[32m+[m		[32mif len(byType["gateway"]) == 0 {[m
+[32m+[m			[32mreturn "Gateway measurements were not collected."[m
+[32m+[m		[32m}[m
+[32m+[m		[32ms := byType["gateway"][0][m
+[32m+[m		[32mif stat, ok := s.Metrics["gateway_ms"]; ok {[m
+[32m+[m			[32mif s.LossRate == 0 {[m
+[32m+[m				[32mreturn fmt.Sprintf("Gateway median latency was %.0f ms with no meaningful loss.", stat.Median)[m
+[32m+[m			[32m}[m
+[32m+[m			[32mreturn fmt.Sprintf("Gateway median latency was %.0f ms with %.1f%% loss.", stat.Median, 100*s.LossRate)[m
+[32m+[m		[32m}[m
+[32m+[m		[32mreturn fmt.Sprintf("Gateway checks completed %d of %d attempts.", s.Successes, s.Attempts)[m
+[32m+[m	[32mcase "dns":[m
+[32m+[m		[32mall := append(append([]model.CollectorSummary{}, byType["dns_system"]...), byType["dns_comparison"]...)[m
+[32m+[m		[32mattempts, timeouts := 0, 0[m
+[32m+[m		[32mfor _, s := range all {[m
+[32m+[m			[32mattempts += s.Attempts[m
+[32m+[m			[32mtimeouts += s.Errors[model.ErrorTimeout][m
+[32m+[m		[32m}[m
+[32m+[m		[32mif attempts == 0 {[m
+[32m+[m			[32mreturn "DNS measurements were not collected."[m
+[32m+[m		[32m}[m
+[32m+[m		[32mreturn fmt.Sprintf("%d of %d DNS checks timed out.", timeouts, attempts)[m
+[32m+[m	[32mcase "internet":[m
+[32m+[m		[32mreturn successObservation("Internet connection", byType["tcp_connect"])[m
+[32m+[m	[32mcase "destinations":[m
+[32m+[m		[32mreturn successObservation("Destination", byType["https"])[m
+[32m+[m	[32m}[m
+[32m+[m	[32mreturn ""[m
+[32m+[m[32m}[m
+[32m+[m
+[32m+[m[32mfunc successObservation(label string, summaries []model.CollectorSummary) string {[m
+[32m+[m	[32mattempts, successes := 0, 0[m
+[32m+[m	[32mfor _, s := range summaries {[m
+[32m+[m		[32mattempts += s.Attempts[m
+[32m+[m		[32msuccesses += s.Successes[m
+[32m+[m	[32m}[m
+[32m+[m	[32mif attempts == 0 {[m
+[32m+[m		[32mreturn label + " measurements were not collected."[m
+[32m+[m	[32m}[m
+[32m+[m	[32mreturn fmt.Sprintf("%s checks completed %d of %d attempts.", label, successes, attempts)[m
+[32m+[m[32m}[m
+[32m+[m
+ func summaryStatus(summaries []model.CollectorSummary) string {[m
+ 	if len(summaries) == 0 {[m
+[31m-		return "unavailable"[m
+[32m+[m		[32mreturn "inconclusive"[m
+ 	}[m
+ 	hasSuccess, degraded, unsupportedOnly := false, false, true[m
+ 	for _, summary := range summaries {[m
+[36m@@ -80,8 +140,11 @@[m [mfunc summaryStatus(summaries []model.CollectorSummary) string {[m
+ 			degraded = true[m
+ 		}[m
+ 	}[m
+[31m-	if unsupportedOnly || !hasSuccess {[m
+[31m-		return "unavailable"[m
+[32m+[m	[32mif unsupportedOnly {[m
+[32m+[m		[32mreturn "not_measured"[m
+[32m+[m	[32m}[m
+[32m+[m	[32mif !hasSuccess {[m
+[32m+[m		[32mreturn "inconclusive"[m
+ 	}[m
+ 	if degraded {[m
+ 		return "degraded"[m
+[1mdiff --git a/internal/webapp/manager.go b/internal/webapp/manager.go[m
+[1mindex da23f27..105d6b3 100644[m
+[1m--- a/internal/webapp/manager.go[m
+[1m+++ b/internal/webapp/manager.go[m
+[36m@@ -214,14 +214,16 @@[m [mfunc cloneLayers(values []LayerState) []LayerState { return append([]LayerState([m
+ func layerForCollector(kind string) string {[m
+ 	switch kind {[m
+ 	case "device_resources":[m
+[31m-		return "device"[m
+[32m+[m		[32mreturn ""[m
+ 	case "wifi":[m
+ 		return "local"[m
+ 	case "gateway":[m
+ 		return "gateway"[m
+ 	case "dns_system", "dns_comparison":[m
+[32m+[m		[32mreturn "dns"[m
+[32m+[m	[32mcase "tcp_connect":[m
+ 		return "internet"[m
+[31m-	case "tcp_connect", "https":[m
+[32m+[m	[32mcase "https":[m
+ 		return "destinations"[m
+ 	}[m
+ 	return ""[m
+[1mdiff --git a/internal/webapp/types.go b/internal/webapp/types.go[m
+[1mindex 421f968..8e29c4b 100644[m
+[1m--- a/internal/webapp/types.go[m
+[1m+++ b/internal/webapp/types.go[m
+[36m@@ -12,9 +12,10 @@[m [mtype Runner interface {[m
+ }[m
+ [m
+ type LayerState struct {[m
+[31m-	ID     string `json:"id"`[m
+[31m-	Label  string `json:"label"`[m
+[31m-	Status string `json:"status"`[m
+[32m+[m	[32mID          string `json:"id"`[m
+[32m+[m	[32mLabel       string `json:"label"`[m
+[32m+[m	[32mStatus      string `json:"status"`[m
+[32m+[m	[32mObservation string `json:"observation,omitempty"`[m
+ }[m
+ [m
+ type Event struct {[m
+[36m@@ -49,9 +50,9 @@[m [mtype StartResponse struct {[m
+ }[m
+ [m
+ var layerOrder = []LayerState{[m
+[31m-	{ID: "device", Label: "Device", Status: "waiting"},[m
+ 	{ID: "local", Label: "Wi-Fi / Ethernet", Status: "waiting"},[m
+ 	{ID: "gateway", Label: "Gateway", Status: "waiting"},[m
+[31m-	{ID: "internet", Label: "DNS / Internet", Status: "waiting"},[m
+[31m-	{ID: "destinations", Label: "Destinations", Status: "waiting"},[m
+[32m+[m	[32m{ID: "dns", Label: "DNS", Status: "waiting"},[m
+[32m+[m	[32m{ID: "internet", Label: "Internet", Status: "waiting"},[m
+[32m+[m	[32m{ID: "destinations", Label: "Tested destinations", Status: "waiting"},[m
+ }[m
+[1mdiff --git a/internal/webassets/dist/assets/index-DvIEdinD.css b/internal/webassets/dist/assets/index-DvIEdinD.css[m
+[1mdeleted file mode 100644[m
+[1mindex 82fe1a3..0000000[m
+[1m--- a/internal/webassets/dist/assets/index-DvIEdinD.css[m
+[1m+++ /dev/null[m
+[36m@@ -1 +0,0 @@[m
+[31m-:root{color:#18211e;font-synthesis:none;text-rendering:optimizelegibility;--ink:#18211e;--muted:#65706a;--line:#d7d8d2;--paper:#fffefb;--teal:#0b665b;--teal-dark:#074a42;--healthy:#287a50;--warning:#a05c00;--danger:#a6372c;background:#f5f3ed;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif}*{box-sizing:border-box}body{min-width:320px;min-height:100vh;margin:0}button,input,select{font:inherit}button,a{-webkit-tap-highlight-color:transparent}button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline-offset:3px;outline:3px solid #f1a832}main{width:min(1080px,100% - 40px);margin:0 auto;padding:72px 0 80px}.hero{max-width:790px;margin-bottom:54px}.wordmark{letter-spacing:-.04em;margin:0 0 24px;font-family:Georgia,Times New Roman,serif;font-size:1.6rem;font-weight:700}h1,h2,h3,p{text-wrap:pretty}h1{letter-spacing:-.045em;max-width:850px;margin:0;font-family:Georgia,Times New Roman,serif;font-size:clamp(2.55rem,7vw,5.25rem);font-weight:600;line-height:.98}.hero__lede{max-width:640px;color:var(--muted);margin:28px 0 0;font-size:1.15rem;line-height:1.65}.diagnose{border-top:1px solid var(--line);padding-top:32px}.start-controls{flex-wrap:wrap;align-items:end;gap:24px 36px;display:flex}fieldset{border:0;gap:20px;min-width:260px;margin:0;padding:0;display:flex}legend,.scenario{width:100%;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px;font-size:.82rem;font-weight:700}fieldset label{min-height:44px;color:var(--ink);align-items:center;gap:8px;font-weight:650;display:flex}input[type=radio]{width:18px;height:18px;accent-color:var(--teal)}.scenario{gap:8px;width:min(280px,100%);display:grid}select{background:var(--paper);min-height:44px;color:var(--ink);text-transform:capitalize;border:1px solid #aeb4af;border-radius:6px;padding:0 38px 0 12px}.button{min-height:44px;color:var(--ink);cursor:pointer;background:0 0;border:1px solid #0000;border-radius:6px;justify-content:center;align-items:center;padding:10px 18px;font-weight:750;text-decoration:none;display:inline-flex}.button--primary{color:#fff;background:var(--teal)}.button--primary:hover{background:var(--teal-dark)}.button--large{min-height:54px;padding:14px 28px;font-size:1.05rem}.button--quiet{background:0 0;border-color:#aeb4af}.button--quiet:hover{background:#ebe9e3}.privacy-note{color:var(--muted);flex-basis:100%;margin:-8px 0 0;font-size:.9rem}.path{grid-template-columns:repeat(5,1fr);margin:56px 0 0;padding:0;list-style:none;display:grid}.path__layer{min-width:0;padding:0 16px 0 0;position:relative}.path__layer:not(:last-child):after{content:"";background:var(--line);height:1px;position:absolute;top:8px;left:17px;right:0}.path__marker{z-index:1;background:#f5f3ed;border:2px solid #8d9691;border-radius:50%;width:17px;height:17px;margin-bottom:15px;display:block;position:relative}.path__copy{gap:4px;display:grid}.path__copy strong{overflow-wrap:anywhere;font-size:.93rem}.path__copy span{color:var(--muted);text-transform:capitalize;font-size:.8rem}.path__layer--testing .path__marker{border-color:var(--teal);animation:1.6s ease-in-out infinite pulse;box-shadow:0 0 0 5px #0b665b1f}.path__layer--healthy .path__marker{border-color:var(--healthy);background:var(--healthy)}.path__layer--degraded .path__marker{border-color:var(--danger);background:var(--danger);border-radius:3px}.path__layer--unavailable .path__marker{border-style:dashed}.path__layer--inconclusive .path__marker{border-color:var(--warning);background:var(--paper)}.run-state{border-top:1px solid var(--line);flex-wrap:wrap;align-items:center;gap:16px 32px;margin-top:40px;padding-top:24px;display:flex}.run-state p{margin:0}.testing-dot{background:var(--teal);border-radius:50%;width:8px;height:8px;margin-right:10px;display:inline-block}.error{border-left:3px solid var(--danger);color:#7b211a;background:#fff1ed;margin:24px 0 0;padding:10px 14px}.result{border-top:5px solid var(--teal);background:var(--paper);margin-top:64px;padding:clamp(28px,6vw,64px);box-shadow:0 16px 60px #1c221f14}.eyebrow,.demo-stamp{color:var(--teal);letter-spacing:.11em;text-transform:uppercase;margin:0 0 14px;font-size:.78rem;font-weight:800}.demo-stamp{color:#744100;background:#fff0c9;padding:7px 10px;display:inline-block}.result h2{letter-spacing:-.03em;max-width:760px;margin:0;font-family:Georgia,Times New Roman,serif;font-size:clamp(2rem,5vw,3.7rem);line-height:1.05}.result h3{margin:0 0 14px;font-size:1rem}.confidence{color:var(--muted);margin:22px 0 46px}.confidence strong{color:var(--ink);text-transform:capitalize}.result__columns{grid-template-columns:1fr 1fr;gap:36px 64px;margin-bottom:44px;display:grid}.result__secondary{border-top:1px solid var(--line);margin-top:48px;padding-top:36px}.plain-list,.action-list{margin:0;padding-left:20px}.plain-list li,.action-list li{margin:0 0 10px;line-height:1.55}.action-list{counter-reset:actions;max-width:720px;padding:0;list-style:none}.action-list li{counter-increment:actions;grid-template-columns:28px 1fr;gap:10px;display:grid}.action-list li:before{content:counter(actions);border:1px solid var(--teal);width:24px;height:24px;color:var(--teal);border-radius:50%;place-items:center;font-size:.75rem;font-weight:800;display:grid}.muted{color:var(--muted)}.result__actions{margin-top:44px}.advanced{border-top:1px solid var(--line);margin-top:42px;padding-top:24px}.advanced summary{cursor:pointer;width:fit-content;font-weight:750}.advanced pre{border:1px solid var(--line);white-space:pre-wrap;overflow-wrap:anywhere;background:#f7f7f4;max-height:480px;margin:20px 0 0;padding:18px;font-size:.76rem;line-height:1.5;overflow:auto}.new-test{margin-top:24px}.history{border-top:1px solid var(--line);margin-top:72px;padding-top:26px}.history h2{font-family:Georgia,serif;font-size:1.45rem}.history ul{margin:0;padding:0;list-style:none}.history li{border-bottom:1px solid var(--line);grid-template-columns:minmax(160px,.5fr) 1fr auto;gap:18px;padding:14px 0;display:grid}.history li span,.history li em{color:var(--muted);font-size:.86rem}.demo-banner{z-index:10;color:#3f2700;text-align:center;background:#ffd978;padding:10px 20px;font-size:.88rem;font-weight:800;position:sticky;top:0}.sr-only{clip:rect(0, 0, 0, 0);white-space:nowrap;border:0;width:1px;height:1px;margin:-1px;padding:0;position:absolute;overflow:hidden}@keyframes pulse{50%{box-shadow:0 0 0 9px #0b665b00}}@media (width<=720px){main{width:min(100% - 28px,1080px);padding-top:42px}.hero{margin-bottom:40px}.path{grid-template-columns:1fr;gap:0;margin-top:42px}.path__layer{grid-template-columns:26px 1fr;min-height:70px;padding:0;display:grid}.path__layer:not(:last-child):after{width:1px;height:auto;top:17px;bottom:0;left:8px}.path__copy{align-content:start;padding-bottom:18px}.result__columns{grid-template-columns:1fr}.history li{grid-template-columns:1fr;gap:4px}}@media (prefers-reduced-motion:reduce){*,:before,:after{scroll-behavior:auto!important;transition-duration:.01ms!important;animation-duration:.01ms!important;animation-iteration-count:1!important}}[m
+[1mdiff --git a/internal/webassets/dist/assets/index-w-pGfmSz.js b/internal/webassets/dist/assets/index-w-pGfmSz.js[m
+[1mdeleted file mode 100644[m
+[1mindex b7d2abb..0000000[m
+[1m--- a/internal/webassets/dist/assets/index-w-pGfmSz.js[m
+[1m+++ /dev/null[m
+[36m@@ -1,9 +0,0 @@[m
+[31m-var e=(e,t)=>()=>(t||(e((t={exports:{}}).exports,t),e=null),t.exports);(function(){let e=document.createElement(`link`).relList;if(e&&e.supports&&e.supports(`modulepreload`))return;for(let e of document.querySelectorAll(`link[rel="modulepreload"]`))n(e);new MutationObserver(e=>{for(let t of e)if(t.type===`childList`)for(let e of t.addedNodes)e.tagName===`LINK`&&e.rel===`modulepreload`&&n(e)}).observe(document,{childList:!0,subtree:!0});function t(e){let t={};return e.integrity&&(t.integrity=e.integrity),e.referrerPolicy&&(t.referrerPolicy=e.referrerPolicy),e.crossOrigin===`use-credentials`?t.credentials=`include`:e.crossOrigin===`anonymous`?t.credentials=`omit`:t.credentials=`same-origin`,t}function n(e){if(e.ep)return;e.ep=!0;let n=t(e);fetch(e.href,n)}})();var t=e((e=>{var t=Symbol.for(`react.transitional.element`),n=Symbol.for(`react.portal`),r=Symbol.for(`react.fragment`),i=Symbol.for(`react.strict_mode`),a=Symbol.for(`react.profiler`),o=Symbol.for(`react.consumer`),s=Symbol.for(`react.context`),c=Symbol.for(`react.forward_ref`),l=Symbol.for(`react.suspense`),u=Symbol.for(`react.memo`),d=Symbol.for(`react.lazy`),f=Symbol.for(`react.activity`),p=Symbol.iterator;function m(e){return typeof e!=`object`||!e?null:(e=p&&e[p]||e[`@@iterator`],typeof e==`function`?e:null)}var h={isMounted:function(){return!1},enqueueForceUpdate:function(){},enqueueReplaceState:function(){},enqueueSetState:function(){}},g=Object.assign,_={};function v(e,t,n){this.props=e,this.context=t,this.refs=_,this.updater=n||h}v.prototype.isReactComponent={},v.prototype.setState=function(e,t){if(typeof e!=`object`&&typeof e!=`function`&&e!=null)throw Error(`takes an object of state variables to update or a function which returns an object of state variables.`);this.updater.enqueueSetState(this,e,t,`setState`)},v.prototype.forceUpdate=function(e){this.updater.enqueueForceUpdate(this,e,`forceUpdate`)};function y(){}y.prototype=v.prototype;function b(e,t,n){this.props=e,this.context=t,this.refs=_,this.updater=n||h}var x=b.prototype=new y;x.constructor=b,g(x,v.prototype),x.isPureReactComponent=!0;var ee=Array.isArray;function S(){}var C={H:null,A:null,T:null,S:null},te=Object.prototype.hasOwnProperty;function ne(e,n,r){var i=r.ref;return{$$typeof:t,type:e,key:n,ref:i===void 0?null:i,props:r}}function re(e,t){return ne(e.type,t,e.props)}function w(e){return typeof e==`object`&&!!e&&e.$$typeof===t}function ie(e){var t={"=":`=0`,":":`=2`};return`$`+e.replace(/[=:]/g,function(e){return t[e]})}var ae=/\/+/g;function oe(e,t){return typeof e==`object`&&e&&e.key!=null?ie(``+e.key):t.toString(36)}function se(e){switch(e.status){case`fulfilled`:return e.value;case`rejected`:throw e.reason;default:switch(typeof e.status==`string`?e.then(S,S):(e.status=`pending`,e.then(function(t){e.status===`pending`&&(e.status=`fulfilled`,e.value=t)},function(t){e.status===`pending`&&(e.status=`rejected`,e.reason=t)})),e.status){case`fulfilled`:return e.value;case`rejected`:throw e.reason}}throw e}function ce(e,r,i,a,o){var s=typeof e;(s===`undefined`||s===`boolean`)&&(e=null);var c=!1;if(e===null)c=!0;else switch(s){case`bigint`:case`string`:case`number`:c=!0;break;case`object`:switch(e.$$typeof){case t:case n:c=!0;break;case d:return c=e._init,ce(c(e._payload),r,i,a,o)}}if(c)return o=o(e),c=a===``?`.`+oe(e,0):a,ee(o)?(i=``,c!=null&&(i=c.replace(ae,`$&/`)+`/`),ce(o,r,i,``,function(e){return e})):o!=null&&(w(o)&&(o=re(o,i+(o.key==null||e&&e.key===o.key?``:(``+o.key).replace(ae,`$&/`)+`/`)+c)),r.push(o)),1;c=0;var l=a===``?`.`:a+`:`;if(ee(e))for(var u=0;u<e.length;u++)a=e[u],s=l+oe(a,u),c+=ce(a,r,i,s,o);else if(u=m(e),typeof u==`function`)for(e=u.call(e),u=0;!(a=e.next()).done;)a=a.value,s=l+oe(a,u++),c+=ce(a,r,i,s,o);else if(s===`object`){if(typeof e.then==`function`)return ce(se(e),r,i,a,o);throw r=String(e),Error(`Objects are not valid as a React child (found: `+(r===`[object Object]`?`object with keys {`+Object.keys(e).join(`, `)+`}`:r)+`). If you meant to render a collection of children, use an array instead.`)}return c}function le(e,t,n){if(e==null)return e;var r=[],i=0;return ce(e,r,``,``,function(e){return t.call(n,e,i++)}),r}function ue(e){if(e._status===-1){var t=e._result;t=t(),t.then(function(t){(e._status===0||e._status===-1)&&(e._status=1,e._result=t)},function(t){(e._status===0||e._status===-1)&&(e._status=2,e._result=t)}),e._status===-1&&(e._status=0,e._result=t)}if(e._status===1)return e._result.default;throw e._result}var T=typeof reportError==`function`?reportError:function(e){if(typeof window==`object`&&typeof window.ErrorEvent==`function`){var t=new window.ErrorEvent(`error`,{bubbles:!0,cancelable:!0,message:typeof e==`object`&&e&&typeof e.message==`string`?String(e.message):String(e),error:e});if(!window.dispatchEvent(t))return}else if(typeof process==`object`&&typeof process.emit==`function`){process.emit(`uncaughtException`,e);return}console.error(e)},E={map:le,forEach:function(e,t,n){le(e,function(){t.apply(this,arguments)},n)},count:function(e){var t=0;return le(e,function(){t++}),t},toArray:function(e){return le(e,function(e){return e})||[]},only:function(e){if(!w(e))throw Error(`React.Children.only expected to receive a single React element child.`);return e}};e.Activity=f,e.Children=E,e.Component=v,e.Fragment=r,e.Profiler=a,e.PureComponent=b,e.StrictMode=i,e.Suspense=l,e.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE=C,e.__COMPILER_RUNTIME={__proto__:null,c:function(e){return C.H.useMemoCache(e)}},e.cache=function(e){return function(){return e.apply(null,arguments)}},e.cacheSignal=function(){return null},e.cloneElement=function(e,t,n){if(e==null)throw Error(`The argument must be a React element, but you passed `+e+`.`);var r=g({},e.props),i=e.key;if(t!=null)for(a in t.key!==void 0&&(i=``+t.key),t)!te.call(t,a)||a===`key`||a===`__self`||a===`__source`||a===`ref`&&t.ref===void 0||(r[a]=t[a]);var a=arguments.length-2;if(a===1)r.children=n;else if(1<a){for(var o=Array(a),s=0;s<a;s++)o[s]=arguments[s+2];r.children=o}return ne(e.type,i,r)},e.createContext=function(e){return e={$$typeof:s,_currentValue:e,_currentValue2:e,_threadCount:0,Provider:null,Consumer:null},e.Provider=e,e.Consumer={$$typeof:o,_context:e},e},e.createElement=function(e,t,n){var r,i={},a=null;if(t!=null)for(r in t.key!==void 0&&(a=``+t.key),t)te.call(t,r)&&r!==`key`&&r!==`__self`&&r!==`__source`&&(i[r]=t[r]);var o=arguments.length-2;if(o===1)i.children=n;else if(1<o){for(var s=Array(o),c=0;c<o;c++)s[c]=arguments[c+2];i.children=s}if(e&&e.defaultProps)for(r in o=e.defaultProps,o)i[r]===void 0&&(i[r]=o[r]);return ne(e,a,i)},e.createRef=function(){return{current:null}},e.forwardRef=function(e){return{$$typeof:c,render:e}},e.isValidElement=w,e.lazy=function(e){return{$$typeof:d,_payload:{_status:-1,_result:e},_init:ue}},e.memo=function(e,t){return{$$typeof:u,type:e,compare:t===void 0?null:t}},e.startTransition=function(e){var t=C.T,n={};C.T=n;try{var r=e(),i=C.S;i!==null&&i(n,r),typeof r==`object`&&r&&typeof r.then==`function`&&r.then(S,T)}catch(e){T(e)}finally{t!==null&&n.types!==null&&(t.types=n.types),C.T=t}},e.unstable_useCacheRefresh=function(){return C.H.useCacheRefresh()},e.use=function(e){return C.H.use(e)},e.useActionState=function(e,t,n){return C.H.useActionState(e,t,n)},e.useCallback=function(e,t){return C.H.useCallback(e,t)},e.useContext=function(e){return C.H.useContext(e)},e.useDebugValue=function(){},e.useDeferredValue=function(e,t){return C.H.useDeferredValue(e,t)},e.useEffect=function(e,t){return C.H.useEffect(e,t)},e.useEffectEvent=function(e){return C.H.useEffectEvent(e)},e.useId=function(){return C.H.useId()},e.useImperativeHandle=function(e,t,n){return C.H.useImperativeHandle(e,t,n)},e.useInsertionEffect=function(e,t){return C.H.useInsertionEffect(e,t)},e.useLayoutEffect=function(e,t){return C.H.useLayoutEffect(e,t)},e.useMemo=function(e,t){return C.H.useMemo(e,t)},e.useOptimistic=function(e,t){return C.H.useOptimistic(e,t)},e.useReducer=function(e,t,n){return C.H.useReducer(e,t,n)},e.useRef=function(e){return C.H.useRef(e)},e.useState=function(e){return C.H.useState(e)},e.useSyncExternalStore=function(e,t,n){return C.H.useSyncExternalStore(e,t,n)},e.useTransition=function(){return C.H.useTransition()},e.version=`19.2.7`})),n=e(((e,n)=>{n.exports=t()})),r=e((e=>{function t(e,t){var n=e.length;e.push(t);a:for(;0<n;){var r=n-1>>>1,a=e[r];if(0<i(a,t))e[r]=t,e[n]=a,n=r;else break a}}function n(e){return e.length===0?null:e[0]}function r(e){if(e.length===0)return null;var t=e[0],n=e.pop();if(n!==t){e[0]=n;a:for(var r=0,a=e.length,o=a>>>1;r<o;){var s=2*(r+1)-1,c=e[s],l=s+1,u=e[l];if(0>i(c,n))l<a&&0>i(u,c)?(e[r]=u,e[l]=n,r=l):(e[r]=c,e[s]=n,r=s);else if(l<a&&0>i(u,n))e[r]=u,e[l]=n,r=l;else break a}}return t}function i(e,t){var n=e.sortIndex-t.sortIndex;return n===0?e.id-t.id:n}if(e.unstable_now=void 0,typeof performance==`object`&&typeof performance.now==`function`){var a=performance;e.unstable_now=function(){return a.now()}}else{var o=Date,s=o.now();e.unstable_now=function(){return o.now()-s}}var c=[],l=[],u=1,d=null,f=3,p=!1,m=!1,h=!1,g=!1,_=typeof setTimeout==`function`?setTimeout:null,v=typeof clearTimeout==`function`?clearTimeout:null,y=typeof setImmediate<`u`?setImmediate:null;function b(e){for(var i=n(l);i!==null;){if(i.callback===null)r(l);else if(i.startTime<=e)r(l),i.sortIndex=i.expirationTime,t(c,i);else break;i=n(l)}}function x(e){if(h=!1,b(e),!m)if(n(c)!==null)m=!0,ee||(ee=!0,w());else{var t=n(l);t!==null&&oe(x,t.startTime-e)}}var ee=!1,S=-1,C=5,te=-1;function ne(){return g?!0:!(e.unstable_now()-te<C)}function re(){if(g=!1,ee){var t=e.unstable_now();te=t;var i=!0;try{a:{m=!1,h&&(h=!1,v(S),S=-1),p=!0;var a=f;try{b:{for(b(t),d=n(c);d!==null&&!(d.expirationTime>t&&ne());){var o=d.callback;if(typeof o==`function`){d.callback=null,f=d.priorityLevel;var s=o(d.expirationTime<=t);if(t=e.unstable_now(),typeof s==`function`){d.callback=s,b(t),i=!0;break b}d===n(c)&&r(c),b(t)}else r(c);d=n(c)}if(d!==null)i=!0;else{var u=n(l);u!==null&&oe(x,u.startTime-t),i=!1}}break a}finally{d=null,f=a,p=!1}i=void 0}}finally{i?w():ee=!1}}}var w;if(typeof y==`function`)w=function(){y(re)};else if(typeof MessageChannel<`u`){var ie=new MessageChannel,ae=ie.port2;ie.port1.onmessage=re,w=function(){ae.postMessage(null)}}else w=function(){_(re,0)};function oe(t,n){S=_(function(){t(e.unstable_now())},n)}e.unstable_IdlePriority=5,e.unstable_ImmediatePriority=1,e.unstable_LowPriority=4,e.unstable_NormalPriority=3,e.unstable_Profiling=null,e.unstable_UserBlockingPriority=2,e.unstable_cancelCallback=function(e){e.callback=null},e.unstable_forceFrameRate=function(e){0>e||125<e?console.error(`forceFrameRate takes a positive int between 0 and 125, forcing frame rates higher than 125 fps is not supported`):C=0<e?Math.floor(1e3/e):5},e.unstable_getCurrentPriorityLevel=function(){return f},e.unstable_next=function(e){switch(f){case 1:case 2:case 3:var t=3;break;default:t=f}var n=f;f=t;try{return e()}finally{f=n}},e.unstable_requestPaint=function(){g=!0},e.unstable_runWithPriority=function(e,t){switch(e){case 1:case 2:case 3:case 4:case 5:break;default:e=3}var n=f;f=e;try{return t()}finally{f=n}},e.unstable_scheduleCallback=function(r,i,a){var o=e.unstable_now();switch(typeof a==`object`&&a?(a=a.delay,a=typeof a==`number`&&0<a?o+a:o):a=o,r){case 1:var s=-1;break;case 2:s=250;break;case 5:s=1073741823;break;case 4:s=1e4;break;default:s=5e3}return s=a+s,r={id:u++,callback:i,priorityLevel:r,startTime:a,expirationTime:s,sortIndex:-1},a>o?(r.sortIndex=a,t(l,r),n(c)===null&&r===n(l)&&(h?(v(S),S=-1):h=!0,oe(x,a-o))):(r.sortIndex=s,t(c,r),m||p||(m=!0,ee||(ee=!0,w()))),r},e.unstable_shouldYield=ne,e.unstable_wrapCallback=function(e){var t=f;return function(){var n=f;f=t;try{return e.apply(this,arguments)}finally{f=n}}}})),i=e(((e,t)=>{t.exports=r()})),a=e((e=>{var t=n();function r(e){var t=`https://react.dev/errors/`+e;if(1<arguments.length){t+=`?args[]=`+encodeURIComponent(arguments[1]);for(var n=2;n<arguments.length;n++)t+=`&args[]=`+encodeURIComponent(arguments[n])}return`Minified React error #`+e+`; visit `+t+` for the full message or use the non-minified dev environment for full errors and additional helpful warnings.`}function i(){}var a={d:{f:i,r:function(){throw Error(r(522))},D:i,C:i,L:i,m:i,X:i,S:i,M:i},p:0,findDOMNode:null},o=Symbol.for(`react.portal`);function s(e,t,n){var r=3<arguments.length&&arguments[3]!==void 0?arguments[3]:null;return{$$typeof:o,key:r==null?null:``+r,children:e,containerInfo:t,implementation:n}}var c=t.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE;function l(e,t){if(e===`font`)return``;if(typeof t==`string`)return t===`use-credentials`?t:``}e.__DOM_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE=a,e.createPortal=function(e,t){var n=2<arguments.length&&arguments[2]!==void 0?arguments[2]:null;if(!t||t.nodeType!==1&&t.nodeType!==9&&t.nodeType!==11)throw Error(r(299));return s(e,t,null,n)},e.flushSync=function(e){var t=c.T,n=a.p;try{if(c.T=null,a.p=2,e)return e()}finally{c.T=t,a.p=n,a.d.f()}},e.preconnect=function(e,t){typeof e==`string`&&(t?(t=t.crossOrigin,t=typeof t==`string`?t===`use-credentials`?t:``:void 0):t=null,a.d.C(e,t))},e.prefetchDNS=function(e){typeof e==`string`&&a.d.D(e)},e.preinit=function(e,t){if(typeof e==`string`&&t&&typeof t.as==`string`){var n=t.as,r=l(n,t.crossOrigin),i=typeof t.integrity==`string`?t.integrity:void 0,o=typeof t.fetchPriority==`string`?t.fetchPriority:void 0;n===`style`?a.d.S(e,typeof t.precedence==`string`?t.precedence:void 0,{crossOrigin:r,integrity:i,fetchPriority:o}):n===`script`&&a.d.X(e,{crossOrigin:r,integrity:i,fetchPriority:o,nonce:typeof t.nonce==`string`?t.nonce:void 0})}},e.preinitModule=function(e,t){if(typeof e==`string`)if(typeof t==`object`&&t){if(t.as==null||t.as===`script`){var n=l(t.as,t.crossOrigin);a.d.M(e,{crossOrigin:n,integrity:typeof t.integrity==`string`?t.integrity:void 0,nonce:typeof t.nonce==`string`?t.nonce:void 0})}}else t??a.d.M(e)},e.preload=function(e,t){if(typeof e==`string`&&typeof t==`object`&&t&&typeof t.as==`string`){var n=t.as,r=l(n,t.crossOrigin);a.d.L(e,n,{crossOrigin:r,integrity:typeof t.integrity==`string`?t.integrity:void 0,nonce:typeof t.nonce==`string`?t.nonce:void 0,type:typeof t.type==`string`?t.type:void 0,fetchPriority:typeof t.fetchPriority==`string`?t.fetchPriority:void 0,referrerPolicy:typeof t.referrerPolicy==`string`?t.referrerPolicy:void 0,imageSrcSet:typeof t.imageSrcSet==`string`?t.imageSrcSet:void 0,imageSizes:typeof t.imageSizes==`string`?t.imageSizes:void 0,media:typeof t.media==`string`?t.media:void 0})}},e.preloadModule=function(e,t){if(typeof e==`string`)if(t){var n=l(t.as,t.crossOrigin);a.d.m(e,{as:typeof t.as==`string`&&t.as!==`script`?t.as:void 0,crossOrigin:n,integrity:typeof t.integrity==`string`?t.integrity:void 0})}else a.d.m(e)},e.requestFormReset=function(e){a.d.r(e)},e.unstable_batchedUpdates=function(e,t){return e(t)},e.useFormState=function(e,t,n){return c.H.useFormState(e,t,n)},e.useFormStatus=function(){return c.H.useHostTransitionStatus()},e.version=`19.2.7`})),o=e(((e,t)=>{function n(){if(!(typeof __REACT_DEVTOOLS_GLOBAL_HOOK__>`u`||typeof __REACT_DEVTOOLS_GLOBAL_HOOK__.checkDCE!=`function`))try{__REACT_DEVTOOLS_GLOBAL_HOOK__.checkDCE(n)}catch(e){console.error(e)}}n(),t.exports=a()})),s=e((e=>{var t=i(),r=n(),a=o();function s(e){var t=`https://react.dev/errors/`+e;if(1<arguments.length){t+=`?args[]=`+encodeURIComponent(arguments[1]);for(var n=2;n<arguments.length;n++)t+=`&args[]=`+encodeURIComponent(arguments[n])}return`Minified React error #`+e+`; visit `+t+` for the full message or use the non-minified dev environment for full errors and additional helpful warnings.`}function c(e){return!(!e||e.nodeType!==1&&e.nodeType!==9&&e.nodeType!==11)}function l(e){var t=e,n=e;if(e.alternate)for(;t.return;)t=t.return;else{e=t;do t=e,t.flags&4098&&(n=t.return),e=t.return;while(e)}return t.tag===3?n:null}function u(e){if(e.tag===13){var t=e.memoizedState;if(t===null&&(e=e.alternate,e!==null&&(t=e.memoizedState)),t!==null)return t.dehydrated}return null}function d(e){if(e.tag===31){var t=e.memoizedState;if(t===null&&(e=e.alterna
