@@ -1,12 +1,10 @@
 # RouteCause
 
-RouteCause is a private, local-first 60-second network snapshot that measures each connection layer and reports what happened during the test.
-
-> **Screenshot placeholder:** release UI capture pending on a browser-capable environment.
+RouteCause is a local Go network measurement engine with an embedded React/TypeScript interface. Concurrent DNS, TCP, HTTPS, gateway and native Windows Wi-Fi collectors produce a bounded 60-second snapshot, streamed through replayable Server-Sent Events. It reports observed symptoms by network layer; it does not prove ISP, router or device fault ownership, and a quiet session cannot exclude intermittent faults.
 
 [Live Demo](#live-demo) · [Windows Download](#windows-download-and-native-run) · [Architecture](docs/architecture.md) · [Native Windows validation](docs/validation/native-windows.md)
 
-**Verified benchmark:** the local HTTP/SSE layer completed streams for 10,000 simulated clients with 0% observed errors in the recorded WSL run. These were simulated clients, explicitly not users, and the result is not a capacity guarantee. [Method and measurements](docs/benchmarks/milestone2-wsl.md).
+**Verified benchmark:** the local HTTP/SSE layer completed streams for 10,000 simulated clients with 0% observed errors in the recorded WSL run. This controlled WSL benchmark used deterministic demo sessions and is not a production capacity guarantee. [Method and measurements](docs/benchmarks/milestone2-wsl.md).
 
 ## Quick start
 
@@ -23,14 +21,13 @@ RouteCause measures Wi-Fi or Ethernet, the local gateway, DNS, the internet path
 
 Results are observations, not fault ownership: healthy, issue observed, not measured or insufficient data for each layer. “No significant problem was observed during this test” says nothing about behavior outside the measurement window.
 
-Release screenshots and recording are intentionally not checked in yet: this WSL image lacks Chromium's `libnspr4.so` runtime dependency, and no compatible system browser is installed. The exact deterministic capture commands are in the verification section below; generated filenames are `docs/assets/routecause-start.png`, `routecause-result.png` and `routecause-demo.webm`.
-
 ## Product architecture
 
 - A Go diagnostic engine collects typed DNS, TCP, HTTPS, device, Windows Wi-Fi and gateway evidence.
 - A React and TypeScript interface is built by Vite and embedded into the Go executable.
 - The native application listens only on `127.0.0.1`, opens the local interface and streams collector state over replayable Server-Sent Events.
-- One snapshot runs at a time. Refreshing reconnects to the active session rather than starting another.
+- SSE fits the one-way progress stream; start and cancel use ordinary HTTP requests, so a WebSocket channel is unnecessary. Per-session event IDs and `Last-Event-ID` replay later retained events after reconnect.
+- One snapshot runs at a time; concurrent starts return HTTP 409. Refresh reconnects to the active session. Cancellation and shutdown cancel the engine context; collectors have per-attempt deadlines and a bounded worker pool.
 - The CLI remains available for scripted diagnoses and capability inspection.
 - No account, cloud service, analytics, database or upload path exists.
 
