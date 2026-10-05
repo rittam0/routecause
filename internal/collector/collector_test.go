@@ -87,12 +87,18 @@ func TestSuccessfulResultBeforeDeadlineRemainsSuccessful(t *testing.T) {
 	}
 }
 
+type clockFunc func() time.Time
+
+func (f clockFunc) Now() time.Time { return f() }
+
 func TestHTTPSUnexpectedStatusPreservesTransportTiming(t *testing.T) {
-	p := NewHTTPS("https://test.invalid/health", http.MethodGet, []int{http.StatusOK}, RealClock{}, func() string { return "id" }).(*HTTPSProbe)
+	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	p := NewHTTPS("https://test.invalid/health", http.MethodGet, []int{http.StatusOK}, clockFunc(func() time.Time { return now }), func() string { return "id" }).(*HTTPSProbe)
 	p.client = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
 		if r.Method != http.MethodGet {
 			t.Errorf("method = %s", r.Method)
 		}
+		now = now.Add(2 * time.Millisecond)
 		return &http.Response{StatusCode: http.StatusNotFound, Body: io.NopCloser(strings.NewReader(strings.Repeat("x", maxHTTPSBodyBytes+1024))), Header: make(http.Header), Request: r}, nil
 	})}
 	got := p.Collect(context.Background())
@@ -102,7 +108,7 @@ func TestHTTPSUnexpectedStatusPreservesTransportTiming(t *testing.T) {
 	if got.EndpointSuccess == nil || *got.EndpointSuccess {
 		t.Fatalf("404 was labelled expected: %#v", got)
 	}
-	if got.Values["status_code"] != 404 || got.Values["total_ms"] <= 0 || got.Values["body_truncated"] != 1 {
+	if got.Values["status_code"] != 404 || got.Values["total_ms"] != 2 || got.Values["body_truncated"] != 1 {
 		t.Fatalf("timing/status/body evidence missing: %#v", got.Values)
 	}
 }
